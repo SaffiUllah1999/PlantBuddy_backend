@@ -41,6 +41,20 @@ async function main() {
       }
     });
 
+    app.get("/getLeaderBoardUsers", async (req, res) => {
+      try {
+        const users = await dbo
+          .collection("Users")
+          .find({})
+          .sort({ Score: -1 }) // Sort by Score in descending order
+          .toArray();
+        res.json(users);
+      } catch (err) {
+        console.error("Error retrieving users:", err);
+        res.status(500).send(err);
+      }
+    });
+
     //Login ADMIN
     app.post("/adminLogin", async (req, res) => {
       const { email, password } = req.body;
@@ -209,12 +223,20 @@ async function main() {
     });
 
     // APi to del the Article
-    app.delete("/articles/:id", async (req, res) => {
-      const articleId = req.params.id;
-    
+    app.delete("/articles", async (req, res) => {
+      const { _id } = req.body; // Extracting id from request body
+
+      console.log("Get ID" + JSON.stringify(_id));
+
+      if (!_id) {
+        return res.status(400).json({ message: "ID is required" });
+      }
+
       try {
-        const result = await dbo.collection("Articles").deleteOne({ _id: new ObjectId(articleId) });
-    
+        const result = await dbo
+          .collection("Articles")
+          .deleteOne({ _id: new ObjectId(_id) });
+
         if (result.deletedCount === 1) {
           res.status(200).json({ message: "Article deleted successfully" });
         } else {
@@ -222,10 +244,11 @@ async function main() {
         }
       } catch (err) {
         console.error("Error deleting document:", err);
-        res.status(500).json({ message: "Internal Server Error", error: err.message });
+        res
+          .status(500)
+          .json({ message: "Internal Server Error", error: err.message });
       }
     });
-    
 
     //Register
     app.post("/register", async (req, res) => {
@@ -338,7 +361,7 @@ async function main() {
     //Place Order by User
     app.post("/placeOrder", async (req, res) => {
       const { orders } = req.body; // Expecting an array of order objects
-
+    
       // Ensure that orders is an array
       if (!Array.isArray(orders)) {
         return res.status(400).json({
@@ -346,7 +369,7 @@ async function main() {
           status: false,
         });
       }
-
+    
       try {
         // Create an array to hold the order insertions
         const orderInsertions = orders.map((order) => ({
@@ -358,22 +381,31 @@ async function main() {
           quantity: order.quantity,
           status: order.status || "", // Set default status to an empty string if not provided
         }));
-
-        // Insert multiple documents into the Products collection
-        const result = await dbo
-          .collection("Orders")
-          .insertMany(orderInsertions);
-
+    
+        // Insert multiple documents into the Orders collection
+        const result = await dbo.collection("Orders").insertMany(orderInsertions);
+    
+        // Extract the email from the first order
+        const userEmail = orders[0]?.email;
+    
+        // Remove the user's cart items
+        const removeCartResult = await dbo.collection("Cart").deleteMany({ email: userEmail });
+    
+        if (removeCartResult.deletedCount === 0) {
+          console.warn("No items found in the cart for the user:", userEmail);
+        }
+    
         res.status(201).json({
           message: "Orders Placed Successfully",
           ids: result.insertedIds,
           status: true,
         });
       } catch (err) {
-        console.error("Error inserting products:", err);
+        console.error("Error placing order:", err);
         res.status(500).send(err);
       }
     });
+    
 
     //Get All Orders by user_id
     app.get("/getAllOrders", async (req, res) => {
@@ -578,7 +610,7 @@ async function main() {
 
     // upload personal pictures
     app.post("/uploadpersonalpictures", async (req, res) => {
-      const { email, image } = req.body;
+      const { email,name, image } = req.body;
       try {
         // const data = await dbo
         //   .collection("Products")
@@ -586,6 +618,7 @@ async function main() {
         // console.log(data);
         const result = await dbo.collection("social_images").insertOne({
           email,
+          name,
           image,
         });
         res.status(201).json({
