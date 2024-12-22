@@ -320,8 +320,21 @@ async function main() {
 
     // Upload Products by base64 Admin Listing of Products  category ===1 ? indoor : outDoor
     app.post("/uploadProducts", async (req, res) => {
-      const { user_id, product_id, image, added_date, name, price, category } =
-        req.body;
+      const {
+        user_id,
+        product_id,
+        image,
+        added_date,
+        name,
+        price,
+        category,
+        care1Data,
+        care2Data,
+        place1Data,
+        place2Data,
+        char1Data,
+        char2Data,
+      } = req.body;
 
       try {
         const result = await dbo.collection("Products").insertOne({
@@ -332,6 +345,13 @@ async function main() {
           name,
           price,
           category,
+          care1Data,
+          care2Data,
+          place1Data,
+          place2Data,
+          char1Data,
+          char2Data,
+          review: []
         });
         res.status(201).json({
           message: "Image uploaded successfully",
@@ -339,6 +359,62 @@ async function main() {
         });
       } catch (err) {
         console.error("Error inserting document:", err);
+        res
+          .status(500)
+          .json({ message: "Internal Server Error", error: err.message });
+      }
+    });
+
+    app.post("/saveReviewToOrder", async (req, res) => {
+      const { _id, email,product_id, comment, review_date } = req.body;
+
+      console.log(req.body)
+      // Input validation
+      if (!_id || !email || !comment || !review_date) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+
+      // Create the review object
+      const review = {
+        email, // User's email
+        comment, // Review comment
+        review_date, // Date when the review was submitted
+      };
+
+      try {
+        // Find the order first to check if the reviews array exists
+        const order = await dbo.collection("Orders").findOne({  _id: new ObjectId(_id)  });
+
+        if (!order) {
+          return res.status(404).json({ message: "Order not found" });
+        }
+
+        // If the reviews field does not exist, initialize it with the first review
+       
+          // If reviews exist, append the new review
+          await dbo.collection("Orders").updateOne(
+            { _id: new ObjectId(_id) },
+            {
+              $push: { review: review }, // Append the new review to the "reviews" array
+            }
+          );
+
+          await dbo.collection("Products").updateOne(
+            { _id: new ObjectId(product_id) },
+            {
+              $push: { review: review }, // Append the new review to the "reviews" array
+            }
+          );
+        
+
+        // Return a success response with the updated order_id
+        res.status(200).json({
+          status: true,
+          message: "Review added to order successfully",
+          _id,
+        });
+      } catch (err) {
+        console.error("Error appending review to order:", err);
         res
           .status(500)
           .json({ message: "Internal Server Error", error: err.message });
@@ -361,7 +437,7 @@ async function main() {
     //Place Order by User
     app.post("/placeOrder", async (req, res) => {
       const { orders } = req.body; // Expecting an array of order objects
-    
+
       // Ensure that orders is an array
       if (!Array.isArray(orders)) {
         return res.status(400).json({
@@ -369,7 +445,7 @@ async function main() {
           status: false,
         });
       }
-    
+
       try {
         // Create an array to hold the order insertions
         const orderInsertions = orders.map((order) => ({
@@ -380,21 +456,26 @@ async function main() {
           price: order.price,
           quantity: order.quantity,
           status: order.status || "", // Set default status to an empty string if not provided
+          review: []
         }));
-    
+
         // Insert multiple documents into the Orders collection
-        const result = await dbo.collection("Orders").insertMany(orderInsertions);
-    
+        const result = await dbo
+          .collection("Orders")
+          .insertMany(orderInsertions);
+
         // Extract the email from the first order
         const userEmail = orders[0]?.email;
-    
+
         // Remove the user's cart items
-        const removeCartResult = await dbo.collection("Cart").deleteMany({ email: userEmail });
-    
+        const removeCartResult = await dbo
+          .collection("Cart")
+          .deleteMany({ email: userEmail });
+
         if (removeCartResult.deletedCount === 0) {
           console.warn("No items found in the cart for the user:", userEmail);
         }
-    
+
         res.status(201).json({
           message: "Orders Placed Successfully",
           ids: result.insertedIds,
@@ -405,7 +486,6 @@ async function main() {
         res.status(500).send(err);
       }
     });
-    
 
     //Get All Orders by user_id
     app.get("/getAllOrders", async (req, res) => {
@@ -610,7 +690,7 @@ async function main() {
 
     // upload personal pictures
     app.post("/uploadpersonalpictures", async (req, res) => {
-      const { email,name, image } = req.body;
+      const { email, name, image } = req.body;
       try {
         // const data = await dbo
         //   .collection("Products")
