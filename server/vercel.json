@@ -1,15 +1,22 @@
 {
     "version": 2,
     "builds": [
-        {
-            "src": "*.js",
-            "use": "@vercel/node"
-        }
+        { "src": "server/index.js", "use": "@vercel/node" }
     ],
-    "routes": [
-        {
-            "src": "/(.*)",
-            "dest": "index.js"
+    "functions": {
+        "server/index.js": {
+            "runtime": "nodejs18.x",
+            "memory": 1024,
+            "maxDuration": 30
         }
-    ]
+    },
+    "routes": [
+        { "src": "/(.*)", "dest": "/server/index.js" }
+    ],
+    "env": {
+        "NODE_ENV": "production",
+        "MONGODB_URI": "@mongo_connection",
+        "JWT_SECRET": "@jwt_secret",
+        "PORT": "3000"
+    }
 }
