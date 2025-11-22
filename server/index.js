@@ -20,7 +20,7 @@ app.use(express.json()); //parse JSON request bodies
 
 //Mongo Connection String ; Allowed connection from anywhere
 const url =
-"mongodb+srv://saffiullah1911:saffi@cluster0.ub6u6j5.mongodb.net/";
+  "mongodb+srv://saffiullah1911:saffi@cluster0.ub6u6j5.mongodb.net/";
 
 async function main() {
   const client = new MongoClient(url);
@@ -366,7 +366,7 @@ async function main() {
     });
 
     app.post("/saveReviewToOrder", async (req, res) => {
-      const { _id, email,product_id, comment, review_date } = req.body;
+      const { _id, email, product_id, comment, review_date } = req.body;
 
       console.log(req.body)
       // Input validation
@@ -383,29 +383,29 @@ async function main() {
 
       try {
         // Find the order first to check if the reviews array exists
-        const order = await dbo.collection("Orders").findOne({  _id: new ObjectId(_id)  });
+        const order = await dbo.collection("Orders").findOne({ _id: new ObjectId(_id) });
 
         if (!order) {
           return res.status(404).json({ message: "Order not found" });
         }
 
         // If the reviews field does not exist, initialize it with the first review
-       
-          // If reviews exist, append the new review
-          await dbo.collection("Orders").updateOne(
-            { _id: new ObjectId(_id) },
-            {
-              $push: { review: review }, // Append the new review to the "reviews" array
-            }
-          );
 
-          await dbo.collection("Products").updateOne(
-            { _id: new ObjectId(product_id) },
-            {
-              $push: { review: review }, // Append the new review to the "reviews" array
-            }
-          );
-        
+        // If reviews exist, append the new review
+        await dbo.collection("Orders").updateOne(
+          { _id: new ObjectId(_id) },
+          {
+            $push: { review: review }, // Append the new review to the "reviews" array
+          }
+        );
+
+        await dbo.collection("Products").updateOne(
+          { _id: new ObjectId(product_id) },
+          {
+            $push: { review: review }, // Append the new review to the "reviews" array
+          }
+        );
+
 
         // Return a success response with the updated order_id
         res.status(200).json({
@@ -691,27 +691,144 @@ async function main() {
     // upload personal pictures
     app.post("/uploadpersonalpictures", async (req, res) => {
       const { email, name, image } = req.body;
+
       try {
-        // const data = await dbo
-        //   .collection("Products")
-        //   .findOne({ _id: new ObjectId(_id) });
-        // console.log(data);
         const result = await dbo.collection("social_images").insertOne({
           email,
           name,
           image,
+
+          // new fields:
+          likes: [],
+          likesCount: 0,
+          comments: [],
+          commentsCount: 0,
+          createdAt: new Date(),
         });
+
         res.status(201).json({
           message: "Image uploaded successfully",
-          //  id: result.insertedId,
+          id: result.insertedId,
         });
+
       } catch (err) {
         console.error("Error inserting document:", err);
-        res
-          .status(500)
-          .json({ message: "Internal Server Error", error: err.message });
+        res.status(500).json({ message: "Internal Server Error", error: err.message });
       }
     });
+
+    app.post("/uploadtextpost", async (req, res) => {
+      const { email, name, text } = req.body;
+
+      try {
+        const result = await dbo.collection("social_texts").insertOne({
+          email,
+          name,
+          text,
+          likes: [],        // same structure as image posts
+          comments: [],     // same structure
+          createdAt: new Date(),
+        });
+
+        res.status(201).json({
+          message: "Text post uploaded successfully",
+        });
+
+      } catch (err) {
+        res.status(500).json({
+          message: "Internal Server Error",
+          error: err.message,
+        });
+      }
+    });
+
+
+    app.post("/likeImage", async (req, res) => {
+      const { imageId, userEmail } = req.body;
+
+      try {
+        const result = await dbo.collection("social_images").updateOne(
+          { _id: new ObjectId(imageId), likes: { $ne: userEmail } }, // user not liked before
+          {
+            $push: { likes: userEmail },
+            $inc: { likesCount: 1 },
+          }
+        );
+
+        if (result.modifiedCount === 0) {
+          return res.status(400).json({ message: "Already liked!" });
+        }
+
+        res.json({ message: "Image liked successfully" });
+      } catch (err) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    app.post("/unlikeImage", async (req, res) => {
+      const { imageId, userEmail } = req.body;
+
+      try {
+        const result = await dbo.collection("social_images").updateOne(
+          { _id: new ObjectId(imageId), likes: userEmail },
+          {
+            $pull: { likes: userEmail },
+            $inc: { likesCount: -1 },
+          }
+        );
+
+        if (result.modifiedCount === 0) {
+          return res.status(400).json({ message: "Not liked yet!" });
+        }
+
+        res.json({ message: "Image unliked successfully" });
+      } catch (err) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    app.post("/commentImage", async (req, res) => {
+      const { imageId, userEmail, commentText } = req.body;
+
+      const comment = {
+        id: new ObjectId(),
+        userEmail,
+        commentText,
+        createdAt: new Date(),
+      };
+
+      try {
+        await dbo.collection("social_images").updateOne(
+          { _id: new ObjectId(imageId) },
+          {
+            $push: { comments: comment },
+            $inc: { commentsCount: 1 },
+          }
+        );
+
+        res.json({ message: "Comment added successfully", comment });
+
+      } catch (err) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    app.get("/getImageComments/:imageId", async (req, res) => {
+      const { imageId } = req.params;
+
+      try {
+        const image = await dbo.collection("social_images").findOne(
+          { _id: new ObjectId(imageId) },
+          { projection: { comments: 1 } }
+        );
+
+        res.json(image.comments || []);
+      } catch (err) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+
 
     // Get all the personal pictures FEED
     app.get("/getpersonalpictures", async (req, res) => {
@@ -791,8 +908,8 @@ async function main() {
       }
     });
 
-    app.listen(port, () => {
-      console.log(`Server running at http://localhost:${port}`);
+    app.listen(port, "0.0.0.0", () => {
+      console.log(`Server running on http://0.0.0.0:${port}`);
     });
   } catch (e) {
     console.error(e);
