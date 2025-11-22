@@ -20,7 +20,7 @@ app.use(express.json()); //parse JSON request bodies
 
 //Mongo Connection String ; Allowed connection from anywhere
 const url =
-  "mongodb+srv://saffiullahraja01:b1qe6hi8Q64bMKMk@plantbuddyclustor.h6k2z.mongodb.net/?retryWrites=true&w=majority&appName=PlantBuddyClustor";
+"mongodb+srv://saffiullah1911:saffi@cluster0.ub6u6j5.mongodb.net/";
 
 async function main() {
   const client = new MongoClient(url);
