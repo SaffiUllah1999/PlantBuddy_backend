@@ -18,9 +18,8 @@ const upload = multer({ dest: "uploads/" });
 
 app.use(express.json()); //parse JSON request bodies
 
-//Mongo Connection String ; Allowed connection from anywhere
-const url =
-"mongodb+srv://saffiullah1911:saffi@cluster0.ub6u6j5.mongodb.net/";
+// MongoDB connection string. Prefer environment variable for production.
+const url = process.env.MONGODB_URI || "mongodb+srv://saffiullah1911:saffi@cluster0.ub6u6j5.mongodb.net/";
 
 // Refactor: initialize DB and routes once and export a handler compatible with Vercel's
 // serverless functions. This keeps local `node index.js` behavior intact.
@@ -31,10 +30,16 @@ let routesInitialized = false;
 async function initDb() {
   if (dbo) return dbo;
   const client = new MongoClient(url);
-  await client.connect();
-  console.log("Connection Success");
-  dbo = client.db("PlantBuddy");
-  return dbo;
+  try {
+    await client.connect();
+    console.log("Connection Success");
+    dbo = client.db("PlantBuddy");
+    return dbo;
+  } catch (err) {
+    console.error("DB connection failed:", err);
+    // Rethrow so caller (handler) can return 500 and log the error
+    throw err;
+  }
 }
 
 function attachRoutes(dboRef) {
