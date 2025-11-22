@@ -12,11 +12,5 @@
     },
     "routes": [
         { "src": "/(.*)", "dest": "/server/index.js" }
-    ],
-    "env": {
-        "NODE_ENV": "production",
-        "MONGODB_URI": "@mongo_connection",
-        "JWT_SECRET": "@jwt_secret",
-        "PORT": "3000"
-    }
+    ]
 }
