@@ -19,8 +19,12 @@ const upload = multer({ dest: "uploads/" });
 app.use(express.json()); //parse JSON request bodies
 
 //Mongo Connection String ; Allowed connection from anywhere
+
 const url =
-  "mongodb+srv://saffiullah1911:saffi@cluster0.ub6u6j5.mongodb.net/";
+  "mongodb+srv://saffiullah1911:saffi@cluster0.ub6u6j5.mongodb.net/PlantBuddy?retryWrites=true&w=majority";
+
+// const url =
+//   "mongodb+srv://saffiullah1911:saffi@cluster0.ub6u6j5.mongodb.net/";
 
 async function main() {
   const client = new MongoClient(url);
@@ -764,6 +768,98 @@ async function main() {
         res.status(500).json({ message: err.message });
       }
     });
+
+    //============= Comment ADd -------------------
+    app.post("/addComment", async (req, res) => {
+      // 1. Destructure necessary data from the request body
+      const { postId, userEmail, userName, commentText } = req.body;
+
+      // 2. Validate input
+      if (!postId  || !userEmail || !userName || !commentText) {
+        return res.status(400).json({ message: "Missing required fields (postId, postType, userEmail, userName, commentText)" });
+      }
+
+      // 3. Determine which collection to use
+      // let collectionName;
+      // if (postType === "image") {
+      //   collectionName = "social_images";
+      // } else if (postType === "text") {
+      //   collectionName = "social_texts";
+      // } else {
+      //   return res.status(400).json({ message: "Invalid postType. Must be 'image' or 'text'." });
+      // }
+
+      // 4. Create the new comment object
+      const newComment = {
+        _id: new ObjectId(), // Gives the comment a unique ID for client-side keys/deletion
+        userEmail: userEmail,
+        userName: userName,
+        text: commentText,
+        createdAt: new Date(),
+      };
+
+      try {
+        // 5. Update the post document
+        const result = await dbo.collection('social_images').updateOne(
+          { _id: new ObjectId(postId) },
+          {
+            $push: { comments: newComment }, // Add the new comment to the array
+            $inc: { commentsCount: 1 },      // Increment the comment counter (if available in the schema, like in social_images)
+          }
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({ message: `${postType} post not found.` });
+        }
+
+        res.status(201).json({
+          message: "Comment added successfully",
+          commentId: newComment._id,
+        });
+
+      } catch (err) {
+        console.error("Error adding comment:", err);
+        res.status(500).json({ message: "Internal Server Error", error: err.message });
+      }
+    });
+
+    // =========== Get COmment ========================
+
+    app.get("/getComments/:postType/:postId", async (req, res) => {
+      // 1. Get parameters from the URL
+      const { postType, postId } = req.params;
+
+      // 2. Determine which collection to use
+      let collectionName;
+      if (postType === "image") {
+        collectionName = "social_images";
+      } else if (postType === "text") {
+        collectionName = "social_texts";
+      } else {
+        return res.status(400).json({ message: "Invalid postType. Must be 'image' or 'text'." });
+      }
+
+      try {
+        // 3. Find the post and project (only return) the comments array
+        const post = await dbo.collection(collectionName).findOne(
+          { _id: new ObjectId(postId) },
+          { projection: { comments: 1, _id: 0 } } // Include comments, exclude post _id
+        );
+
+        if (!post) {
+          return res.status(404).json({ message: `${postType} post not found.` });
+        }
+
+        // 4. Return the array of comments
+        res.json({ comments: post.comments || [] });
+
+      } catch (err) {
+        console.error("Error fetching comments:", err);
+        res.status(500).json({ message: "Internal Server Error", error: err.message });
+      }
+    });
+
+    //= =========================================
 
     app.post("/unlikeImage", async (req, res) => {
       const { imageId, userEmail } = req.body;
